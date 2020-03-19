@@ -12,6 +12,7 @@ def request_netatmo(
     pw: str,
     username: str,
     bounding_gdf: gpd.GeoDataFrame,
+    place: str,
     output_crs: str = "EPSG:32632",
 ):
     """Gets precipitation stations through netatmos api
@@ -55,8 +56,10 @@ def request_netatmo(
     token = auth_json["access_token"]
 
     # Create bounding box:
+    if place not in bounding_gdf.place.values:
+        raise ValueError(f"{place} not in {bounding_gdf.place.values}")
     names = ("lon_sw", "lat_sw", "lon_ne", "lat_ne")
-    coords = bounding_gdf["epsg:4326"][0]
+    coords = bounding_gdf[bounding_gdf.place == place].to_crs('epsg:4326').geometry[0].bounds
     bbox = dict(zip(names, coords))
 
     # Get data
@@ -107,6 +110,7 @@ def request_frost(
     client_secret: str,
     resolution: str,
     bounding_gdf: gpd.GeoDataFrame = None,
+    place: str=None,
     output_crs: str = "EPSG:32632",
 ):
 
@@ -160,17 +164,19 @@ def request_frost(
     gdf = gdf.rename(columns={"stationHolders": "owners"})
 
     # filter by research area
-    if bounding_gdf:
-        gdf = gdf[gdf.geometry.within(bounding_gdf.geometry[0])]
+    if bounding_gdf is not None and place:
+        bound_polygon = bounding_gdf[bounding_gdf.place == place].geometry[0]
+        gdf = gdf[gdf.geometry.within(bound_polygon)]
 
     gdf["source"] = "MET"
     return gdf
 
 
-def load_CML(path: str, bounding_gdf: gpd.GeoDataFrame = None):
+def load_CML(path: str, bounding_gdf: gpd.GeoDataFrame = None, place=None):
     gdf = gpd.GeoDataFrame.from_file(path)
-    if bounding_gdf:
-        gdf = gdf[gdf.geometry.within(bounding_gdf.geometry[0])]
+    if bounding_gdf is not None and place:
+        bound_polygon = bounding_gdf[bounding_gdf.place == place].geometry[0]
+        gdf = gdf[gdf.geometry.within(bound_polygon)]
 
     gdf["source"] = "CML"
     return gdf
