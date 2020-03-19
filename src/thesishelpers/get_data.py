@@ -102,6 +102,10 @@ def request_netatmo(
 
     gdf["source"] = "NETATMO"
 
+    if bounding_gdf is not None and place:
+        bound_polygon = bounding_gdf[bounding_gdf.place == place].geometry[0]
+        gdf = gdf[gdf.geometry.within(bound_polygon)]
+
     return gdf
 
 
