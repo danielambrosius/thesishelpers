@@ -13,7 +13,7 @@ def clip_to_polygon(in_path: str, bounding_gdf: gpd.GeoDataFrame, buffer=None):
         bounding_gdf {gpd.GeoDataFrame} -- gdf where the first line is the bounding geometry
     """
     if buffer:
-        bounding_gdf = bounding_gdf.buffer(buffer)
+        bounding_gdf = bounding_gdf.buffer(buffer, join_style=2)
 
     def get_features(gdf):
     # Function to parse features from GeoDataFrame in such a manner that rasterio wants them
