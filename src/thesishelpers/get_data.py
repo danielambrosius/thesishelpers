@@ -146,8 +146,13 @@ def request_frost(
     else:
         print("resquest succeded")
 
+    # create df
     data = json["data"]
     df = pd.DataFrame.from_dict(data)
+
+    # drop rows that don't include geometric information and sotre
+    # coordinates
+    df = df.dropna(subset=['geometry'])
     df["lon"] = df.geometry.apply(lambda x: x["coordinates"][0])
     df["lat"] = df.geometry.apply(lambda x: x["coordinates"][1])
     df = df.drop(["geometry"], axis=1)
