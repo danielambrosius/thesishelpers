@@ -3,6 +3,7 @@ import pandas as pd
 import geopandas as gpd
 from pyproj import CRS
 from shapely.geometry import Point
+
 # TODO: Add temporal resolution column to datasets?
 
 
@@ -13,8 +14,10 @@ def request_netatmo(
     username: str,
     bounding_gdf: gpd.GeoDataFrame,
     place: str,
+    areal_buffer: float,
     output_crs: str = "EPSG:32632",
 ):
+    # TODO: update docstring for new inputs
     """Gets precipitation stations through netatmos api
 
     Arguments:
@@ -59,8 +62,15 @@ def request_netatmo(
     if place not in bounding_gdf.place.values:
         raise ValueError(f"{place} not in {bounding_gdf.place.values}")
     names = ("lon_sw", "lat_sw", "lon_ne", "lat_ne")
-    coords = bounding_gdf[bounding_gdf.place == place].to_crs('epsg:4326').geometry[0].bounds
+    coords = (
+        bounding_gdf[bounding_gdf.place == place]
+        .buffer(areal_buffer)
+        .to_crs("epsg:4326")
+        .geometry[0]
+        .bounds
+    )
     bbox = dict(zip(names, coords))
+    print(f"after {areal_buffer}m buffer, requested bounding box was: {bbox}")
 
     # Get data
     endpoint = "https://api.netatmo.com/api/getpublicdata"
@@ -104,9 +114,11 @@ def request_netatmo(
 
     if bounding_gdf is not None and place:
         bound_polygon = bounding_gdf[bounding_gdf.place == place].geometry[0]
-        gdf = gdf[gdf.geometry.within(bound_polygon)]
+        clipped_gdf = gdf[gdf.geometry.within(bound_polygon)]
+        removed_stations = len(gdf) - len(clipped_gdf)
+        print(f"{removed_stations} statinos exceeded study area and were removed.")
 
-    return gdf
+    return clipped_gdf
 
 
 def request_frost(
@@ -114,7 +126,7 @@ def request_frost(
     client_secret: str,
     resolution: str,
     bounding_gdf: gpd.GeoDataFrame = None,
-    place: str=None,
+    place: str = None,
     output_crs: str = "EPSG:32632",
 ):
 
@@ -152,7 +164,7 @@ def request_frost(
 
     # drop rows that don't include geometric information and sotre
     # coordinates
-    df = df.dropna(subset=['geometry'])
+    df = df.dropna(subset=["geometry"])
     df["lon"] = df.geometry.apply(lambda x: x["coordinates"][0])
     df["lat"] = df.geometry.apply(lambda x: x["coordinates"][1])
     df = df.drop(["geometry"], axis=1)

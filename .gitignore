@@ -46,3 +46,4 @@ Temporary Items
 */__pycache__/*
 src/thesishelpers/__pycache__/__init__.cpython-37.pyc
 src/thesishelpers/__pycache__/get_data.cpython-37.pyc
+.vscode/*
