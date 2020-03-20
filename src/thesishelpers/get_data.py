@@ -3,6 +3,7 @@ import pandas as pd
 import geopandas as gpd
 from pyproj import CRS
 from shapely.geometry import Point
+from collections import OrderedDict
 
 # TODO: Add temporal resolution column to datasets?
 
@@ -111,7 +112,7 @@ def request_netatmo(
     gdf = gdf.to_crs(output_crs)
 
     gdf["source"] = "NETATMO"
-
+    gdf['owner'] = "PRIVATE"
     if bounding_gdf is not None and place:
         bound_polygon = bounding_gdf[bounding_gdf.place == place].geometry[0]
         clipped_gdf = gdf[gdf.geometry.within(bound_polygon)]
@@ -119,6 +120,40 @@ def request_netatmo(
         print(f"{removed_stations} statinos exceeded study area and were removed.")
 
     return clipped_gdf
+
+def find_primary_owner(owners:str, owner_importance: OrderedDict=None, default_owner:str="OTHER") -> str:
+    """Assigns the primary owner by the first occuring defined by the dict owner_importance.
+       Otherwise it assignes default value.
+    
+    Arguments:
+        owners {str} -- string of all station owners
+    
+    Keyword Arguments:
+        owner_importance {OrderedDict[str,str]} -- Ordered dictionary (by importance) of owners (default: {None})
+        default_owner {str} -- what to assign primary owner if none of the owners occur in owner importance (default: {"private"})
+    
+    Returns:
+        str -- primary owner
+    """
+    if owner_importance is None:
+        owner_importance = OrderedDict({
+            "MET.NO": "MET.NO",
+            "NVE": "NVE",
+            "STATENS VEGVESEN": "SVV",
+            "NIBIO": "NIBIO",
+            "BANE NOR": "BANE NOR",
+            "KOMMUNE": "MUNICIPALITY",
+            "ENERGI": "ENERGY",
+            "KRAFT": "ENERGY",
+            "STATNETT": "ENERGY"
+            "AVINOR": "AVINOR"
+            "": default_owner
+        })
+    for key, value in owner_importance.items():
+        if key in owners:
+            if key == '':
+                print(owners)
+            return value
 
 
 def request_frost(
@@ -181,14 +216,14 @@ def request_frost(
     def cat_to_str(li):
         return ",".join(li)
 
-    gdf["stationHolders"] = gdf["stationHolders"].apply(cat_to_str)
-    gdf = gdf.rename(columns={"stationHolders": "owners"})
+    gdf["stationHolders"] = gdf["stationHolders"].apply(cat_to_str).apply(find_primary_owner)
+    gdf = gdf.rename(columns={"stationHolders": "owner"})
 
     # filter by research area
     if bounding_gdf is not None and place:
         bound_polygon = bounding_gdf[bounding_gdf.place == place].geometry[0]
         gdf = gdf[gdf.geometry.within(bound_polygon)]
-
+    
     gdf["source"] = "MET"
     return gdf
 
@@ -198,6 +233,6 @@ def load_CML(path: str, bounding_gdf: gpd.GeoDataFrame = None, place=None):
     if bounding_gdf is not None and place:
         bound_polygon = bounding_gdf[bounding_gdf.place == place].geometry[0]
         gdf = gdf[gdf.geometry.within(bound_polygon)]
-
+    gdf['owner'] = "TELIA"
     gdf["source"] = "CML"
     return gdf
