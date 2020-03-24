@@ -150,26 +150,26 @@ def find_primary_owner(owners:str, owner_importance: OrderedDict=None, default_o
         })
     for key, value in owner_importance.items():
         if key in owners:
-            if key == '':
-                print(owners)
+            # TODO: info about the owners grouped to other
             return value
 
 
 def request_frost(
     client_ID: str,
     client_secret: str,
-    resolution: str,
+    resolution: str = "all",
     bounding_gdf: gpd.GeoDataFrame = None,
     place: str = None,
     output_crs: str = "EPSG:32632",
 ):
 
-    elements = {
+    elements = OrderedDict({
         "monthly": r"sum(precipitation_amount P1M)",
         "daily": r"sum(precipitation_amount P1D)",
         "hourly": r"sum(precipitation_amount PT1H)",
         "10_min": r"sum(precipitation_amount PT10M)",
-    }
+        "1_min": r"sum(precipitation_amount PT1M)"
+    })
     endpoint = "https://frost.met.no/sources/v0.jsonld"
     parameters = {
         "types": "SensorSystem",
@@ -178,8 +178,31 @@ def request_frost(
     }
     if resolution in elements:
         parameters["elements"] = elements[resolution]
+    elif resolution == "all":
+        # Wired subroutine, that should request all the resolutions and construct
+        # a gdf with temporal resolution as column 
+        dfs = []
+        for res in elements:
+            gdf = request_frost(
+                client_ID=client_ID,
+                client_secret=client_secret,
+                resolution=res,
+                bounding_gdf=bounding_gdf,
+                place=place,
+                output_crs=output_crs
+            )
+            gdf["resolution"] = res
+            gdf = gdf.set_index("id")
+            dfs.append(gdf)
+        gdf = dfs.pop(0)  # Should be the monthly resolution dataset,
+                          # This should also contain all with finer resolution.
+        for other in dfs:
+           gdf.update(other)
+        # TODO: quality control, assert that lengths are correct etc.
+        gdf = gdf.reset_index()
+        return gdf
     else:
-        raise ValueError(f"resolution argument must be one of {[k for k in elements]}.")
+        raise ValueError(f"resolution argument must be one of {[k for k in elements]}, or \"all\"")
 
     # Get data
     r = requests.get(endpoint, parameters, auth=(client_ID, client_secret))
@@ -190,7 +213,7 @@ def request_frost(
               {json['error']['message']}: {json['error']['reason']}"
         )
     else:
-        print("resquest succeded")
+        print(f"resquest for {resolution} data succeded")
 
     # create df
     data = json["data"]
@@ -225,6 +248,7 @@ def request_frost(
     
     gdf["source"] = "MET"
     return gdf
+
 
 
 def load_CML(path: str, bounding_gdf: gpd.GeoDataFrame = None, place=None):
