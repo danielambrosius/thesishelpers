@@ -145,8 +145,7 @@ def find_primary_owner(owners:str, owner_importance: OrderedDict=None, default_o
             "KOMMUNE": "MUNICIPALITY",
             "ENERGI": "ENERGY",
             "KRAFT": "ENERGY",
-            "STATNETT": "ENERGY"
-            "AVINOR": "AVINOR"
+            "STATNETT": "ENERGY",
             "": default_owner
         })
     for key, value in owner_importance.items():
