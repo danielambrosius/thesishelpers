@@ -113,6 +113,7 @@ def request_netatmo(
 
     gdf["source"] = "NETATMO"
     gdf['owner'] = "PRIVATE"
+    gdf["resolution"] = "hourly"
     if bounding_gdf is not None and place:
         bound_polygon = bounding_gdf[bounding_gdf.place == place].geometry[0]
         clipped_gdf = gdf[gdf.geometry.within(bound_polygon)]
@@ -258,4 +259,5 @@ def load_CML(path: str, bounding_gdf: gpd.GeoDataFrame = None, place=None):
         gdf = gdf[gdf.geometry.within(bound_polygon)]
     gdf['owner'] = "TELIA"
     gdf["source"] = "CML"
+    gdf["resolution"] = "hourly"
     return gdf
