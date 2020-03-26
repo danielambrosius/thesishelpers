@@ -25,7 +25,7 @@ def create_grid(dx, bounding_gdf):
 
     grid = gpd.GeoDataFrame({"geometry": points})
     grid.crs = CRS.from_epsg(32632)
-    grid = grid[grid.geometry.within(bounding_gdf.geometry[0])]
+    grid = grid[grid.geometry.within(bounding_gdf.geometry.iloc[0])]
     return grid
 
 

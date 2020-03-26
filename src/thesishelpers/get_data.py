@@ -14,7 +14,6 @@ def request_netatmo(
     pw: str,
     username: str,
     bounding_gdf: gpd.GeoDataFrame,
-    place: str,
     areal_buffer: float,
     output_crs: str = "EPSG:32632",
 ):
@@ -26,9 +25,7 @@ def request_netatmo(
         client_secret {str} --
         pw {str} -- password
         username {str} -- username
-        bounding_gdf {gpd.GeoDataFrame} -- gdf where the first line has a
-                                           column "epsg:4326"
-        with a tuple (x_SW, y_SW, x_NE, y_NE)
+        bounding_gdf {gpd.GeoDataFrame} -- gdf where first line has bounding geometry
 
     Keyword Arguments:
         output_crs {str} -- Output coordinate reference system (default: {'EPSG:32632'})
@@ -59,15 +56,12 @@ def request_netatmo(
         print(f"token request succeded.")
     token = auth_json["access_token"]
 
-    # Create bounding box:
-    if place not in bounding_gdf.place.values:
-        raise ValueError(f"{place} not in {bounding_gdf.place.values}")
     names = ("lon_sw", "lat_sw", "lon_ne", "lat_ne")
     coords = (
-        bounding_gdf[bounding_gdf.place == place]
+        bounding_gdf
         .buffer(areal_buffer)
         .to_crs("epsg:4326")
-        .geometry[0]
+        .geometry.iloc[0]
         .bounds
     )
     bbox = dict(zip(names, coords))
@@ -114,8 +108,8 @@ def request_netatmo(
     gdf["source"] = "NETATMO"
     gdf['owner'] = "PRIVATE"
     gdf["resolution"] = "hourly"
-    if bounding_gdf is not None and place:
-        bound_polygon = bounding_gdf[bounding_gdf.place == place].geometry[0]
+    if bounding_gdf is not None:
+        bound_polygon = bounding_gdf.geometry.iloc[0]
         clipped_gdf = gdf[gdf.geometry.within(bound_polygon)]
         removed_stations = len(gdf) - len(clipped_gdf)
         print(f"{removed_stations} statinos exceeded study area and were removed.")
@@ -160,7 +154,6 @@ def request_frost(
     client_secret: str,
     resolution: str = "all",
     bounding_gdf: gpd.GeoDataFrame = None,
-    place: str = None,
     output_crs: str = "EPSG:32632",
 ):
 
@@ -189,7 +182,6 @@ def request_frost(
                 client_secret=client_secret,
                 resolution=res,
                 bounding_gdf=bounding_gdf,
-                place=place,
                 output_crs=output_crs
             )
             gdf["resolution"] = res
@@ -243,8 +235,8 @@ def request_frost(
     gdf = gdf.rename(columns={"stationHolders": "owner"})
 
     # filter by research area
-    if bounding_gdf is not None and place:
-        bound_polygon = bounding_gdf[bounding_gdf.place == place].geometry[0]
+    if bounding_gdf is not None:
+        bound_polygon = bounding_gdf.geometry.iloc[0]
         gdf = gdf[gdf.geometry.within(bound_polygon)]
     
     gdf["source"] = "MET"
@@ -252,10 +244,10 @@ def request_frost(
 
 
 
-def load_CML(path: str, bounding_gdf: gpd.GeoDataFrame = None, place=None):
+def load_CML(path: str, bounding_gdf: gpd.GeoDataFrame = None):
     gdf = gpd.GeoDataFrame.from_file(path)
-    if bounding_gdf is not None and place:
-        bound_polygon = bounding_gdf[bounding_gdf.place == place].geometry[0]
+    if bounding_gdf is not None:
+        bound_polygon = bounding_gdf.geometry.iloc[0]
         gdf = gdf[gdf.geometry.within(bound_polygon)]
     gdf['owner'] = "TELIA"
     gdf["source"] = "CML"
