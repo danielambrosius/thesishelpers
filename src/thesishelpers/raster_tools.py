@@ -4,7 +4,7 @@ import json
 import geopandas as gpd
 
 
-def clip_to_polygon(in_path: str, bounding_gdf: gpd.GeoDataFrame, buffer=None):
+def clip_to_polygon(in_path: str, bounding_gdf: gpd.GeoDataFrame, buffer=None, out_path=None):
     """clips a raster, saves the clipped raster, opens, and returns
        a handle to it
     
@@ -33,8 +33,9 @@ def clip_to_polygon(in_path: str, bounding_gdf: gpd.GeoDataFrame, buffer=None):
             "transform": out_transform,
         }
     )
-
-    out_path = in_path.split(".tif")[0] + "_clipped.tif"
+    if out_path is None:
+        out_path = in_path.split(".tif")[0] + "_clipped.tif"
+    
     with rasterio.open(out_path, "w", **out_meta) as dest:
         dest.write(out_image)
 
