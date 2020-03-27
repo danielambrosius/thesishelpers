@@ -3,43 +3,83 @@ import numpy as np
 import geopandas as gpd
 from shapely.geometry import Point, LineString, Polygon
 from pyproj import CRS
+import matplotlib.colors as colors
 
+class DensityGrid:
 
-def create_grid(dx, bounding_gdf):
-    """[summary]
+    def __init__(self, dx=None, bounding_gdf=None, buffer=None, path=None):
+        if (dx and (bounding_gdf is not None) and buffer) and (path is None):
+            if buffer < dx:
+                raise ValueError("buffer must be larger than or equal to dx, otherwise points are missed")
+            self.dx = dx
+            self.bounding_gdf = bounding_gdf
+            self.buffer = buffer
+            self._grid = None
+            self.create_grid()
+        elif path:
+            self._grid = gpd.GeoDataFrame.from_file(path)
+        else:
+            raise ValueError("Either path must be supplied, or dx, bounding_gdf, and buffer must all be supplied")
+
+    @property
+    def grid(self):
+        return self._grid
     
-    Arguments:
-        dx {int} -- distance between gridpoints in meters
-        bounding_gdf {gpd.GeoDataFrame} -- GeoDataframe conaining bounding geometry.
-    """
-    xmin, ymin, xmax, ymax = bounding_gdf.total_bounds
+    def save_grid(self, path):
+        """Saves grid as GEOJSON
+        """        
+        self._grid.to_file(path, driver="GeoJSON")
 
-    # create iterators for 10*10 km grid
-    xrange = range(int(xmin), int(xmax), dx)
-    yrange = range(int(ymin), int(ymax), dx)
-    points = []
+    def plot(self, column, ax, vmax=None, norm=None, legend=False):
+        if norm == 'log':
+            normalize_method = colors.LogNorm(vmin=1e-5, vmax=vmax)
+        else:
+            normalize_method = colors.Normalize(vmin=1e-5, vmax=vmax)
 
-    for x in xrange:
-        for y in yrange:
-            points.append(Point(x, y))
+        ax = self._grid.plot(
+            column=column,
+            ax=ax,
+            norm=normalize_method,
+            legend=legend
+        )
+        ax.set_title(' '.join(column.split('_')))
+        ax.set_xlabel("meters utm 32N")
+        ax.set_xticklabels(ax.get_xticklabels(), rotation=25)
+        return ax
+    
+    def create_grid(self):
+        """Creates a grid of points dx apart within a bounding geometry.
+        """
+        xmin, ymin, xmax, ymax = self.bounding_gdf.total_bounds
 
-    grid = gpd.GeoDataFrame({"geometry": points})
-    grid.crs = CRS.from_epsg(32632)
-    grid = grid[grid.geometry.within(bounding_gdf.geometry.iloc[0])]
-    return grid
+        # create iterators for dx*dx m grid
+        xrange = range(int(xmin), int(xmax), self.dx)
+        yrange = range(int(ymin), int(ymax), self.dx)
+        points = []
 
+        for x in xrange:
+            for y in yrange:
+                points.append(Point(x, y))
 
-def density_grid(gdf, buffer, dx=None, bounding_gdf=None):
+        grid = gpd.GeoDataFrame({"geometry": points})
+        grid.crs = CRS.from_epsg(32632)
+        grid = grid[grid.geometry.within(self.bounding_gdf.geometry.iloc[0])]
+        grid["geometry"] = grid.buffer(self.dx/2).envelope
+        self._grid = grid
+        
 
-    if (dx is None) or (bounding_gdf is None):
-        raise ValueError("dx and bounding_gdf have to be supplied.")
-    grid = create_grid(dx=dx, bounding_gdf=bounding_gdf)
+    def create_density(self, gdf, append=False, suffix=None):
+        """
+        Returns grid with station counts within a bounding square of [(buffer*2)^2] m^2 around each point.
+        The resulting GeoDataFrame also contains a column "density" of stations per km^2.
+        The buffer argument can be thought of as a smoothing parameter.
+        """ 
+        cols = {'counts': 'counts', 'density': 'density'}
+        if append and (suffix is not None):
+            cols = {key: val + "_" + suffix for key, val in cols.items()} 
 
-    if buffer < dx:
-        raise ValueError("Buffer cannot be less than dx")
-    grid["counts"] = grid.buffer(buffer).envelope.apply(
-        lambda g: gdf.geometry.centroid.intersects(g).sum()
-    )
-    buffered_area = (2 * buffer) ** 2
-    grid["density"] = grid.counts / (buffered_area * 10 ** (-4))
-    return grid
+        self._grid[cols["counts"]] = self._grid.buffer(self.buffer-self.dx).envelope.apply(
+            lambda g: gdf.geometry.centroid.intersects(g).sum()
+        )
+        buffered_area = (2 * self.buffer) ** 2
+        self._grid[cols["density"]] = self._grid[cols["counts"]] / (buffered_area * (10 ** -3) ** 2)
