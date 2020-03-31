@@ -6,6 +6,7 @@ from pyproj import CRS
 import matplotlib.colors as colors
 import rasterio
 from rasterio.transform import from_origin
+from math import pi
 
 # To make this shit into a raster:
 # 1. Save length and height of thedataset as ints,
@@ -102,9 +103,8 @@ class DensityGrid:
 
         grid = gpd.GeoDataFrame({"geometry": points})
         grid.crs = CRS.from_epsg(32632)
-        # grid = grid[grid.geometry.within(self.bounding_gdf.geometry.iloc[0])]  # uncomment to store only the array
+        # grid = grid[grid.geometry.within(self.bounding_gdf.geometry.iloc[0])]  # uncomment to discard external points
         grid["within"] = grid.geometry.within(self.bounding_gdf.geometry.iloc[0])
-        grid["geometry"] = grid.buffer(self.dx/2).envelope
         self._grid = grid
         
 
@@ -121,12 +121,12 @@ class DensityGrid:
         def g(row):
             if row.within:
                 return gdf.geometry.centroid.intersects(
-                    row.geometry.buffer(self.buffer-self.dx).envelope
+                    row.geometry.buffer(self.buffer)
                     ).sum()
             else:
                 return np.nan
 
         self._grid[cols["counts"]] = self._grid.apply(g, axis=1)
-        buffered_area = (2 * self.buffer) ** 2
+        buffered_area =  pi * self.buffer ** 2
         self._grid[cols["density"]] = self._grid[cols["counts"]] / (buffered_area * (10 ** -3) ** 2)
         self.data_columns += [cols["counts"], cols["density"]]
