@@ -51,3 +51,11 @@ src/thesishelpers/__pycache__/*
 _oslo.csv
 2020-03-25_oslo.csv
 *.pem
+*.csv
+netatmo_datasets/met_precipitaion_27-04_05-05.pkl
+netatmo_datasets/netatmo_precipitaion_27-04_05-05.pkl
+netatmo_datasets/full_netatmo_dataset.pkl
+netatmo_datasets/Merging_netatmo_datasets.ipynb
+netatmo_datasets/.ipynb_checkpoints/Merging_netatmo_datasets-checkpoint.ipynb
+netatmo_oslo_meta/grid.geojson
+netatmo_oslo_meta/meta_oslo.geojson

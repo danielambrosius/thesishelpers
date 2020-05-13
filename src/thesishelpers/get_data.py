@@ -16,6 +16,7 @@ def request_netatmo(
     bounding_gdf: gpd.GeoDataFrame,
     areal_buffer: float,
     output_crs: str = "EPSG:32632",
+    verbose=False
 ):
     # TODO: update docstring for new inputs
     """Gets precipitation stations through netatmos api
@@ -53,7 +54,8 @@ def request_netatmo(
     if auth.status_code != 200:
         raise Exception(f"token request failed, response: {auth.text}")
     else:
-        print(f"token request succeded.")
+        if verbose:
+            print(f"token request succeded.")
     token = auth_json["access_token"]
 
     names = ("lon_sw", "lat_sw", "lon_ne", "lat_ne")
@@ -65,7 +67,8 @@ def request_netatmo(
         .bounds
     )
     bbox = dict(zip(names, coords))
-    print(f"after {areal_buffer}m buffer, requested bounding box was: {bbox}")
+    if verbose:
+        print(f"after {areal_buffer}m buffer, requested bounding box was: {bbox}")
 
     # Get data
     endpoint = "https://api.netatmo.com/api/getpublicdata"
@@ -81,7 +84,8 @@ def request_netatmo(
               {json['error']['message']}"
         )
     else:
-        print("data resquest succeded")
+        if verbose:
+            print("data resquest succeded")
 
     # Initial processing
     df_raw = pd.DataFrame.from_dict(json)
@@ -107,12 +111,13 @@ def request_netatmo(
 
     gdf["source"] = "NETATMO"
     gdf['owner'] = "PRIVATE"
-    gdf["resolution"] = "hourly"
+    gdf["resolution"] = 60
     if bounding_gdf is not None:
         bound_polygon = bounding_gdf.geometry.iloc[0]
         clipped_gdf = gdf[gdf.geometry.within(bound_polygon)]
         removed_stations = len(gdf) - len(clipped_gdf)
-        print(f"{removed_stations} statinos exceeded study area and were removed.")
+        if verbose:
+            print(f"{removed_stations} statinos exceeded study area and were removed.")
 
     return clipped_gdf
 
@@ -184,7 +189,15 @@ def request_frost(
                 bounding_gdf=bounding_gdf,
                 output_crs=output_crs
             )
-            gdf["resolution"] = res
+            # Maps name to minutes
+            resolution_map = {
+                "monthly": int(60 * 24 * 30.5),
+                "daily": int(60 * 24),
+                "hourly": 60,
+                "10_min": 10,
+                "1_min": 1
+            }
+            gdf["resolution"] = resolution_map[res]
             gdf = gdf.set_index("id")
             dfs.append(gdf)
         gdf = dfs.pop(0)  # Should be the monthly resolution dataset,
@@ -251,5 +264,5 @@ def load_CML(path: str, bounding_gdf: gpd.GeoDataFrame = None):
         gdf = gdf[gdf.geometry.within(bound_polygon)]
     gdf['owner'] = "TELIA"
     gdf["source"] = "CML"
-    gdf["resolution"] = "hourly"
+    gdf["resolution"] = 0.166
     return gdf
